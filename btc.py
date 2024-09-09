@@ -13,7 +13,7 @@ ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
-semaphore = asyncio.Semaphore(3)
+semaphore = asyncio.Semaphore(5)
 
 
 def logger(message, type='info'):
@@ -91,7 +91,7 @@ async def check_wallets(session):
 
 async def run_bruteforce():
     async with aiohttp.ClientSession() as session:
-        tasks = [check_wallets(session) for _ in range(2)]
+        tasks = [check_wallets(session) for _ in range(5)]
         await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
