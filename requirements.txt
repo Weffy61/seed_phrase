@@ -2,3 +2,4 @@ aiohttp==3.10.5
 mnemonic==0.21
 eth-account==0.13.3
 termcolor==2.4.0
+bitcoinlib==0.6.15
