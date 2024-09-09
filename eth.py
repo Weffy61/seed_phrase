@@ -45,8 +45,11 @@ async def scrape_blockscan(session, address):
                     wallet_info = await response.json()
                     wallet_code = wallet_info.get('code')
                     if wallet_code == 1:
-                        balance = wallet_info.get('data')[0].get('balance')
-                        return balance
+                        currencies = wallet_info.get('data')
+                        balances = []
+                        for currency in currencies:
+                            balances.append({currency.get('network'): currency.get('balance')})
+                        return balances
                     else:
                         return '$0.00'
                 else:
@@ -67,14 +70,14 @@ async def check_wallets(session):
             logger(f"💬 Mnemonic: {seed_phrase}", 'info')
             logger(f"🔑 Private key: {account.key.hex()}", 'info')
 
-            eth_balance = await scrape_blockscan(session, account.address)
+            balances = await scrape_blockscan(session, account.address)
 
-            logger(f"🤑 ETH Balance: {eth_balance}", 'info')
-            if eth_balance != '$0.00':
+            logger(f"🤑 Balance: {balances}", 'info')
+            if balances != '$0.00':
                 logger("🎉 Found a wallet with a non-zero balance!", 'success')
                 with open('wallets_eth.txt', 'a') as file:
                     file.write(f"👾 Address: {account.address}\n💬 Mnemonic: {seed_phrase}\n🔑 "
-                               f"Private key: {account.key.hex()}\n🤑 ETH Balance: {eth_balance}\n🤑\n\n")
+                               f"Private key: {account.key.hex()}\n🤑 Balances: {balances}\n🤑\n\n")
             else:
                 logger("👎 No luck this time.", 'warning')
 
