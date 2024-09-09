@@ -72,7 +72,7 @@ async def check_wallets(session):
             logger(f"🤑 ETH Balance: {eth_balance}", 'info')
             if eth_balance != '$0.00':
                 logger("🎉 Found a wallet with a non-zero balance!", 'success')
-                with open('wallets.txt', 'a') as file:
+                with open('wallets_eth.txt', 'a') as file:
                     file.write(f"👾 Address: {account.address}\n💬 Mnemonic: {seed_phrase}\n🔑 "
                                f"Private key: {account.key.hex()}\n🤑 ETH Balance: {eth_balance}\n🤑\n\n")
             else:
